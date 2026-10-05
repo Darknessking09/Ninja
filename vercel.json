@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/api/ninja", "destination": "/api/ninja" },
-    { "source": "/(.*)",      "destination": "/api/ninja" }
-  ]
+  "functions": {
+    "api/ninja.js": {
+      "maxDuration": 500
+    }
+  }
 }
